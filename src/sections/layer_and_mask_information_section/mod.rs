@@ -286,7 +286,8 @@ fn read_layer_channels(
                 // moment.
                 // Compressed bytes per scanline are encoded at the beginning as 2 bytes
                 // per scanline
-                let channel_data = &channel_data[2 * scanlines..];
+                let skip = 2usize.saturating_mul(scanlines).min(channel_data.len());
+                let channel_data = &channel_data[skip..];
                 ChannelBytes::RleCompressed(channel_data.into())
             }
             _ => unimplemented!("Zip compression currently unsupported"),
