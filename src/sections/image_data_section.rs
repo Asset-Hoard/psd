@@ -90,7 +90,7 @@ impl ImageDataSection {
                 };
 
                 // And optionally alpha bytes
-                let alpha = if channel_count == 4 {
+                let alpha = if channel_count >= 4 {
                     Some(ChannelBytes::RawData(
                         channel_bytes[3 * bytes_per_channel..4 * bytes_per_channel].to_vec(),
                     ))
@@ -127,7 +127,7 @@ impl ImageDataSection {
                 let mut red_byte_count = 0;
                 let mut green_byte_count = if channel_count >= 2 { Some(0) } else { None };
                 let mut blue_byte_count = if channel_count >= 3 { Some(0) } else { None };
-                let mut alpha_byte_count = if channel_count == 4 { Some(0) } else { None };
+                let mut alpha_byte_count = if channel_count >= 4 { Some(0) } else { None };
 
                 for _ in 0..psd_height {
                     red_byte_count += cursor.read_u16() as usize;

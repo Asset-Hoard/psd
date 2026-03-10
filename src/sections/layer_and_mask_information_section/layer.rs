@@ -376,6 +376,9 @@ pub struct LayerRecord {
     ///
     /// A 2x2 image would have 4 bytes per channel.
     pub(super) channel_data_lengths: Vec<(PsdChannelKind, u32)>,
+    /// Extra channels (spot color, extra alpha, etc.) that we don't parse but need
+    /// to skip past.
+    pub(super) extra_channel_data_lengths: Vec<u32>,
     /// The position of the top of the image
     pub(super) top: i32,
     /// The position of the left of the image

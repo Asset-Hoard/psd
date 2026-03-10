@@ -227,6 +227,7 @@ impl LayerAndMaskInformationSection {
             let channels = read_layer_channels(
                 cursor,
                 &layer_record.channel_data_lengths,
+                &layer_record.extra_channel_data_lengths,
                 layer_record.height() as usize,
             )?;
 
@@ -258,6 +259,7 @@ impl LayerAndMaskInformationSection {
 fn read_layer_channels(
     cursor: &mut PsdCursor,
     channel_data_lengths: &Vec<(PsdChannelKind, u32)>,
+    extra_channel_data_lengths: &[u32],
     scanlines: usize,
 ) -> Result<LayerChannels, PsdLayerError> {
     let capacity = channel_data_lengths.len();
@@ -293,6 +295,12 @@ fn read_layer_channels(
         channels.insert(*channel_kind, channel_bytes);
     }
 
+    // Skip past extra channel data (spot color, extra alpha, etc.)
+    for extra_length in extra_channel_data_lengths {
+        // 2 bytes for compression type + channel data
+        cursor.read(2 + *extra_length);
+    }
+
     Ok(channels)
 }
 
@@ -324,6 +332,7 @@ fn read_layer_channels(
 /// | Variable               | Layer name: Pascal string, padded to a multiple of 4 bytes.                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |
 fn read_layer_record(cursor: &mut PsdCursor) -> Result<LayerRecord, PsdLayerError> {
     let mut channel_data_lengths = vec![];
+    let mut extra_channel_data_lengths = vec![];
 
     // FIXME:
     // Ran into a bug where a PSD file had a top and left of over 4billion.
@@ -353,15 +362,26 @@ fn read_layer_record(cursor: &mut PsdCursor) -> Result<LayerRecord, PsdLayerErro
     // Read the channel information
     for _ in 0..channel_count {
         let channel_id = cursor.read_i16();
-        let channel_id =
-            PsdChannelKind::new(channel_id).ok_or(PsdLayerError::InvalidChannel { channel_id })?;
 
         let channel_length = cursor.read_u32();
         // The first two bytes encode the compression, the rest of the bytes
         // are the channel data.
         let channel_data_length = channel_length - 2;
 
-        channel_data_lengths.push((channel_id, channel_data_length));
+        match PsdChannelKind::new(channel_id) {
+            Some(kind) => {
+                channel_data_lengths.push((kind, channel_data_length));
+            }
+            None if channel_id >= 0 => {
+                // Extra channels (spot color, extra alpha, etc.) — skip their
+                // data during read_layer_channels but track the length so we
+                // can advance the cursor past them.
+                extra_channel_data_lengths.push(channel_data_length);
+            }
+            None => {
+                return Err(PsdLayerError::InvalidChannel { channel_id });
+            }
+        }
     }
 
     // We do not currently parse the blend mode signature, skip it
@@ -457,6 +477,7 @@ fn read_layer_record(cursor: &mut PsdCursor) -> Result<LayerRecord, PsdLayerErro
     Ok(LayerRecord {
         name,
         channel_data_lengths,
+        extra_channel_data_lengths,
         top,
         left,
         bottom,

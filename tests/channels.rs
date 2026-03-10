@@ -22,6 +22,44 @@ fn one_channel_grayscale_raw_data() -> Result<()> {
     Ok(())
 }
 
+/// Verify that a PSD with a spot color channel parses and produces correct RGBA.
+/// The extra spot color channel (channel ID 3) should be skipped during RGBA generation.
+///
+/// cargo test --test channels spot_color_channel -- --exact
+#[test]
+fn spot_color_channel() -> Result<()> {
+    let psd = include_bytes!("./fixtures/2x2-spot-color.psd");
+    let psd = Psd::from_bytes(psd)?;
+
+    assert_eq!(psd.color_mode(), ColorMode::Rgb);
+    assert_eq!(psd.width(), 2);
+    assert_eq!(psd.height(), 2);
+
+    let rgba = psd.rgba();
+    // 2x2 image = 16 bytes (4 pixels * 4 RGBA bytes)
+    assert_eq!(rgba.len(), 16);
+    // First pixel: R=255, G=0, B=128, A=255
+    assert_eq!(&rgba[0..4], &[255, 0, 128, 255]);
+
+    Ok(())
+}
+
+/// Verify that a CMYK PSD can be parsed without error.
+/// CMYK-to-RGB conversion is not yet implemented, so we only verify parsing succeeds.
+///
+/// cargo test --test channels cmyk_psd_parses -- --exact
+#[test]
+fn cmyk_psd_parses() -> Result<()> {
+    let psd = include_bytes!("./fixtures/2x2-cmyk.psd");
+    let psd = Psd::from_bytes(psd)?;
+
+    assert_eq!(psd.color_mode(), ColorMode::Cmyk);
+    assert_eq!(psd.width(), 2);
+    assert_eq!(psd.height(), 2);
+
+    Ok(())
+}
+
 /// Right now we just make sure that nothing throws when we try to parse a psd that
 /// is 16 bit grayscale.
 ///
